@@ -6,7 +6,11 @@ import seaborn as sns
 
 # To-do:
 # - cuadrados mínimos.
-# - gráfico sobre como se distribuyen las muestras? Estan en nxp dimensiones, cómo hago ***
+# - Gráfico sobre como se distribuyen las muestras? Estan en nxp dimensiones, cómo hago si lo máximo 
+#   que podemos ver y graficar como humanos es nx3 ***
+# - PCA:  la matriz de similaridad con diferentes d no muestra diferencia, no se ve claro porque son 
+#   muchas muestras ***
+# - Qué metodo utilizar para determinar qué dimensiones de las p son las más importantes***
 
 
 def distancia_euclidiana(xi, xj, sigma):
@@ -27,6 +31,9 @@ def graficar_matriz_similitud(similarity_matrix, d):
 
 # Desempaquetado de los datos en el archivo csv, guardados en una matriz
 data_matrix_X = np.loadtxt('dataset03.csv', delimiter=",", skiprows=1)
+cant_filas = data_matrix_X.shape[0]
+cant_variables = data_matrix_X.shape[1]
+y = np.loadtxt('y3.txt')
 
 # Descomposición SVD:
 U, S, Vt = np.linalg.svd(data_matrix_X, full_matrices=False) 
@@ -34,17 +41,25 @@ S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a 
 
 # PCA: matriz de similaridad par a par entre cada fila
 
-# Reducir la dimensionalidad: Matrices de rango d más cercanas a X
+# Reducir la dimensionalidad: Matrices de rango d más cercanas a X.
+# Va cambiando las cantidades de variables medidas que va tomando en cuenta (FEATURES).
+# Como cambio la cantidad de mediciones que tomo en cuenta? *** 
 for d in (2,6,10, data_matrix_X.shape[0]):
     print("Matriz reducida. d = ", d, ".")
     X_aprox_d= U[:,:d]@S[:d,:d]@Vt[:d,:]
-
+    print("el shape de X_aprox_d es: ", X_aprox_d.shape)
+    
     #Modelo de PCA a utilizar:
-    pca = PCA(n_components=d)
-    X_pca_d = pca.fit_transform(data_matrix_X)
+    if (d > cant_variables):
+        pca = PCA(n_components= cant_variables) #Te tira un error sino ***
+    else:
+        pca = PCA(n_components= d)
+    X_pca_d = pca.fit_transform(X_aprox_d)
+    print("el shape de X_pca_d es: ", X_pca_d.shape)
 
     # Inicializar la matriz de similitud
     n = X_pca_d.shape[0]
+    print("n es: ", n)
     similarity_matrix = np.zeros((n, n))
     
     # Calcular la similitud par a par
@@ -58,7 +73,7 @@ for d in (2,6,10, data_matrix_X.shape[0]):
     graficar_matriz_similitud(similarity_matrix, d)
     
 
-
+# CUADRADOS MÍNIMOS:
     
 
 
