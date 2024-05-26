@@ -1,9 +1,10 @@
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # To-do:
-# - PCA: matriz de similaridad par a par entre cada fila de X y de sus versiones reducidas.
 # - cuadrados mínimos.
 # - gráfico sobre como se distribuyen las muestras? Estan en nxp dimensiones, cómo hago ***
 
@@ -19,14 +20,13 @@ def distancia_euclidiana(xi, xj, sigma):
 def graficar_matriz_similitud(similarity_matrix, d):
     plt.figure(figsize=(10, 8))
     sns.heatmap(similarity_matrix, cmap='viridis')
-    plt.title("Matriz de Similitud. d = ", d, ".")
+    plt.title(f"Matriz de Similitud. d = {d}.")
     plt.xlabel("Índice de Muestra")
     plt.ylabel("Índice de Muestra")
     plt.show()
 
 # Desempaquetado de los datos en el archivo csv, guardados en una matriz
 data_matrix_X = np.loadtxt('dataset03.csv', delimiter=",", skiprows=1)
-print(data_matrix_X.shape)
 
 # Descomposición SVD:
 U, S, Vt = np.linalg.svd(data_matrix_X, full_matrices=False) 
@@ -35,13 +35,13 @@ S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a 
 # PCA: matriz de similaridad par a par entre cada fila
 
 # Reducir la dimensionalidad: Matrices de rango d más cercanas a X
-for d in (2,6,10):
+for d in (2,6,10, data_matrix_X.shape[0]):
     print("Matriz reducida. d = ", d, ".")
     X_aprox_d= U[:,:d]@S[:d,:d]@Vt[:d,:]
 
     #Modelo de PCA a utilizar:
     pca = PCA(n_components=d)
-    X_pca_d = pca.fit_transform(X)
+    X_pca_d = pca.fit_transform(data_matrix_X)
 
     # Inicializar la matriz de similitud
     n = X_pca_d.shape[0]
