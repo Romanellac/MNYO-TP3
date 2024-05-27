@@ -39,11 +39,8 @@ y = np.loadtxt('y3.txt')
 U, S, Vt = np.linalg.svd(data_matrix_X, full_matrices=False) 
 S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a matriz.
 
-# PCA: matriz de similaridad par a par entre cada fila
-
 # Reducir la dimensionalidad: Matrices de rango d más cercanas a X.
-# Va cambiando las cantidades de variables medidas que va tomando en cuenta (FEATURES).
-# Como cambio la cantidad de mediciones que tomo en cuenta? *** 
+# Va cambiando las cantidades de variables medidas que va tomando en cuenta.
 for d in (2,6,10, data_matrix_X.shape[0]):
     print("Matriz reducida. d = ", d, ".")
     X_aprox_d= U[:,:d]@S[:d,:d]@Vt[:d,:]
@@ -66,14 +63,17 @@ for d in (2,6,10, data_matrix_X.shape[0]):
     for i in range(n):
         for j in range(n):
             if i != j:
-                similarity_matrix[i, j] = distancia_euclidiana(X_pca_d[i], X_pca_d[j], 1.0) # sigma??? ***
+                similarity_matrix[i, j] = distancia_euclidiana(X_pca_d[i], X_pca_d[j], 1.0) # sigma??? de momento le pongo = 1 ***
             else:
-                similarity_matrix[i, j] = 1.0  # La similitud de una fila consigo misma es 1
+                similarity_matrix[i, j] = 1.0 
+    
+    # Cuadrados mínimos para este d:
+    aprox_vect = LinearRegression().fit(X_pca_d, y)
 
     graficar_matriz_similitud(similarity_matrix, d)
     
 
-# CUADRADOS MÍNIMOS:
+
     
 
 
