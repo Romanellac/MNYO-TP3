@@ -43,7 +43,7 @@ S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a 
 
 # Reducir la dimensionalidad: Matrices de rango d más cercanas a X.
 # Va cambiando las cantidades de variables medidas que va tomando en cuenta.
-for d in (2,6,10, data_matrix_X.shape[0]):
+for d in (2,6,10, data_matrix_X.shape[0]//2, data_matrix_X.shape[0]):
     print("Matriz reducida. d = ", d, ".")
     X_aprox_d= U[:,:d]@S[:d,:d]@Vt[:d,:]
     print("el shape de X_aprox_d es: ", X_aprox_d.shape)
@@ -59,8 +59,8 @@ for d in (2,6,10, data_matrix_X.shape[0]):
     X_pca_d = pca.fit_transform(X_aprox_d)
     print("el shape de X_pca_d es: ", X_pca_d.shape)
     
-    # Scree plot:
-    #The following code constructs the Scree plot
+    # Scree plot: Muestra la importancia de cada componente que estamos tomando en cuenta (primeros d) 
+    # en la modificación que hace A (tipo lo que veíamos que los componentes modificaban geométricamente).
     per_var = np.round(pca.explained_variance_ratio_* 100, decimals=1)
     labels = ['PC' + str(x) for x in range(1, len(per_var)+1)]
     
@@ -70,28 +70,23 @@ for d in (2,6,10, data_matrix_X.shape[0]):
     plt.title('Scree Plot')
     plt.show()
     
-    #the following code makes a fancy looking plot using PC1 and PC2
-    pca_df = pd.DataFrame(X_pca_d, index=[*wt, *ko], columns=labels)
+    # Plot de los puntos de PCA: Estructura del de datos multidimensionales (cada punto es una muestra).
+    pca_df = pd.DataFrame(X_pca_d, columns=labels)
     
-    plt.scatter(pca_df.PC1, pca_df.PC2)
+    plt.scatter(pca_df.PC1, pca_df.PC2) 
+    #En este caso tomamos en cuenta solo los dos primeros componentes.
+    #El porcentaje dice cuánta varianza de los datos originales es captada por cada componente principal.
+    #Uno con porcentake más alto de varianza es más importante para entender la estructura de datos.
+    # - Por eso cuando usamos los 2000, el PC1 y PC2 no tienen porcentajes tan altos, porque como hay 800 mil otros
+    #   componentes más, la influencia sobre esa forma baja no?
     plt.title('My PCA Graph')
     plt.xlabel('PC1 - {0}%'.format(per_var[0]))
     plt.ylabel('PC2 - {0}%'.format(per_var[1]))
+    #Los clusters (agrupamientos) hablan de similitudes entre ese grupo de muestras.
+    #Si los puntos están re dispersos significa que hay mucha variabilidad entre las muestras.
     
-    for sample in pca_df.index:
-        plt.annotate(sample, (pca_df.PC1.loc[sample], pca_df.PC2.loc[sample]))
-    
+  
     plt.show()
-
-
-
-
-
-
-
-
-
-
 
 
 
