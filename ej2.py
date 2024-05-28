@@ -5,21 +5,37 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import mean_squared_error
 
-# Función para leer imágenes desde un archivo zip y convertirlas en una matriz de datos
-def read_images_from_zip(zip_path):
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        files = zip_ref.namelist()
-        images = []
-        for file in files:
-            with zip_ref.open(file) as img_file:
-                img = plt.imread(img_file)
-                images.append(img.flatten())
-        return np.array(images), img.shape
+# Sacar las imágenes del zip-
+def read_images_from_zip(zip_filepath):
+    images = []
+    image_shape = None
 
-# Cargar imágenes del primer conjunto de datos
+    with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
+        for file_name in zip_ref.namelist():
+            # Cuestiones de mac, filtrar directorios, etc.
+            if file_name.startswith('__MACOSX/') or file_name.endswith('/'):
+                continue
+
+            # Chequear si es una imágen.
+            try:
+                with zip_ref.open(file_name) as img_file:
+                    img = plt.imread(img_file)
+                    images.append(img)
+                    if image_shape is None:
+                        image_shape = img.shape
+            except Exception as e:
+                print(f"Skipping non-image file: {file_name} - {e}")
+
+    return images, image_shape
+
+# Cargo imágenes del primer zip
 images1, image_shape1 = read_images_from_zip('datasets_imgs.zip')
 
-# Descomposición en valores singulares (SVD)
+def flatten_images(images):
+    flattened_images = [img.flatten() for img in images]
+    return np.array(flattened_images)
+
+# SVD
 def apply_svd(images, n_components):
     svd = TruncatedSVD(n_components=n_components)
     reduced_data = svd.fit_transform(images)
@@ -52,7 +68,7 @@ def compute_similarity(reduced_data):
     plt.show()
     return similarity_matrix
 
-# Determinación de d óptimo
+# d óptimo
 def find_optimal_d(images, max_d, error_threshold=0.1):
     errors = []
     for d in range(1, max_d+1):
@@ -64,35 +80,42 @@ def find_optimal_d(images, max_d, error_threshold=0.1):
             return d, errors
     return max_d, errors
 
-# Cargar y procesar las imágenes del segundo conjunto de datos
+# CCargo imágenes del segundo zip
 images2, image_shape2 = read_images_from_zip('datasets_imgs_02.zip')
 
-# Parte 1: Aprender representación basada en SVD
+# Aplano las imágenes del primer zip (están en 3 dimensiones por los colores RGB)
+images1 = flatten_images(images1)
+
+
+# 1: SVD de images1
 svd1, reduced_data1 = apply_svd(images1, n_components=50)
 
-# Parte 2: Visualizar imágenes reconstruidas
+# 2: Visualizo las imágenes reconstruidas
 reconstructed_images1 = reconstruct_images(svd1, reduced_data1, image_shape1)
 visualize_reconstructed_images(images1, reconstructed_images1)
 
-# Parte 3: Medir similaridad entre pares de imágenes
+# 3: Mido la similaridad entre pares de imágenes
 similarity_matrix1 = compute_similarity(reduced_data1)
 
-# Parte 4: Encontrar d óptimo para el segundo conjunto de datos
+# Aplano las imágenes del segundo zip (están en 3 dimensiones por los colores RGB)
+images2 = flatten_images(images2)
+
+# 4: d óptimo para el segundo conjunto de datos
 optimal_d, errors = find_optimal_d(images2, max_d=100)
 print(f'Optimal d: {optimal_d}')
 
-# Visualizar error vs d
+# Gráfico error(d)
 plt.plot(range(1, len(errors) + 1), errors)
 plt.xlabel('Number of Dimensions (d)')
 plt.ylabel('Reconstruction Error')
 plt.show()
 
-# Aplicar la misma compresión a dataset_imagenes1.zip
+# Aplico la misma compresión a las imágenes del segundo zip.
 svd2, reduced_data2 = apply_svd(images2, n_components=optimal_d)
 reconstructed_images2 = reconstruct_images(svd2, reduced_data2, image_shape2)
 reconstructed_data1_in_svd2 = svd2.transform(images1)
 reconstructed_images1_in_svd2 = svd2.inverse_transform(reconstructed_data1_in_svd2).reshape(images1.shape)
 
-# Medir error de reconstrucción para dataset_imagenes1.zip usando compresión aprendida de dataset_imagenes2.zip
+# Mido el error de reconstrucción para las imágenes del segundo zip usando la compresión hecha a las del primer zip
 reconstruction_error = np.linalg.norm(images1 - reconstructed_images1_in_svd2, 'fro') / np.linalg.norm(images1, 'fro')
 print(f'Reconstruction error for dataset_imagenes1 using SVD from dataset_imagenes2: {reconstruction_error}')
