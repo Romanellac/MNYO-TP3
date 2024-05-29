@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 from sklearn import preprocessing
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics.pairwise import euclidean_distances
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -31,24 +32,84 @@ def graficar_matriz_similitud(similarity_matrix, d):
     plt.ylabel("Índice de Muestra")
     plt.show()
 
+# Convertir la matriz de distancia en matriz de similitud usando afinidad gaussiana
+def gaussian_similarity(dist_matrix, sigma=1.0):
+    return np.exp(-dist_matrix**2 / (2 * sigma**2))
+
 # Desempaquetado de los datos en el archivo csv, guardados en una matriz
-data_matrix_X = np.loadtxt('dataset03.csv', delimiter=",", skiprows=1)
+data_matrix_X = np.loadtxt('dataset03.csv', delimiter=",", skiprows=1, usecols=range(1, np.genfromtxt('dataset03.csv', delimiter=",", max_rows=1).size))
 cant_filas = data_matrix_X.shape[0]
 cant_variables = data_matrix_X.shape[1]
 y = np.loadtxt('y3.txt')
+print("cantidad de filas: ", cant_filas,". cantidad de columnas: ", cant_variables)
 
 # Descomposición SVD:
 U, S, Vt = np.linalg.svd(data_matrix_X, full_matrices=False) 
 S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a matriz.
 
+# Plot U, S, Vt
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+# Plot U
+axes[0].imshow(U, aspect='auto', cmap='viridis')
+axes[0].set_title('Matrix U')
+axes[0].set_xlabel('Components')
+axes[0].set_ylabel('Samples')
+
+# Plot S
+axes[1].imshow(S, aspect='auto', cmap='viridis')
+axes[1].set_title('Matrix S (Diagonal)')
+axes[1].set_xlabel('Components')
+axes[1].set_ylabel('Components')
+
+# Plot Vt
+axes[2].imshow(Vt, aspect='auto', cmap='viridis')
+axes[2].set_title('Matrix V^T')
+axes[2].set_xlabel('Features')
+axes[2].set_ylabel('Components')
+
+plt.tight_layout()
+plt.show()
+
 # Reducir la dimensionalidad: Matrices de rango d más cercanas a X.
 # Va cambiando las cantidades de variables medidas que va tomando en cuenta.
-for d in (2,6,10, data_matrix_X.shape[0]//2, data_matrix_X.shape[0]):
+for d in (2,6,10, data_matrix_X.shape[1]):
     print("Matriz reducida. d = ", d, ".")
-    X_aprox_d= U[:,:d]@S[:d,:d]@Vt[:d,:]
+    U_d = U[:,:d]
+    S_d = S[:d,:d]
+    Vt_d = Vt[:d,:]
+    
+    # Plot U, S, Vt
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    # Plot U
+    axes[0].imshow(U_d, aspect='auto', cmap='viridis')
+    axes[0].set_title('Matrix U (First d columns)')
+    axes[0].set_xlabel('Components')
+    axes[0].set_ylabel('Samples')
+
+    # Plot S
+    axes[1].imshow(S_d, aspect='auto', cmap='viridis')
+    axes[1].set_title('Matrix S (Diagonal)')
+    axes[1].set_xlabel('Components')
+    axes[1].set_ylabel('Components')
+
+    # Plot Vt
+    axes[2].imshow(Vt_d, aspect='auto', cmap='viridis')
+    axes[2].set_title('Matrix V^T (First d rows)')
+    axes[2].set_xlabel('Features')
+    axes[2].set_ylabel('Components')
+
+    plt.tight_layout()
+    plt.show()
+    
+    X_aprox_d= U_d@S_d@Vt_d
     print("el shape de X_aprox_d es: ", X_aprox_d.shape)
     
-    # Centrar la data (libro de ***):
+    # Crear la mariz del nuevo espacio reducido z:
+    A_z = Vt_d.T@Vt_d # . x
+    
+    # Centrar la data (le resto la media a cada columna):
     X_aprox_d = preprocessing.scale(X_aprox_d)
 
     # Modelo de PCA a utilizar:
@@ -79,7 +140,7 @@ for d in (2,6,10, data_matrix_X.shape[0]//2, data_matrix_X.shape[0]):
     #Uno con porcentake más alto de varianza es más importante para entender la estructura de datos.
     # - Por eso cuando usamos los 2000, el PC1 y PC2 no tienen porcentajes tan altos, porque como hay 800 mil otros
     #   componentes más, la influencia sobre esa forma baja no?
-    plt.title('My PCA Graph')
+    plt.title('PCA Graph')
     plt.xlabel('PC1 - {0}%'.format(per_var[0]))
     plt.ylabel('PC2 - {0}%'.format(per_var[1]))
     #Los clusters (agrupamientos) hablan de similitudes entre ese grupo de muestras.
@@ -87,9 +148,17 @@ for d in (2,6,10, data_matrix_X.shape[0]//2, data_matrix_X.shape[0]):
     
   
     plt.show()
+    
+    euclidean_dist_matrix = euclidean_distances(X_pca_d)
+
+    # Aplicar la transformación de afinidad gaussiana
+    sigma = 1.0  # Parámetro de escala
+    similarity_matrix = gaussian_similarity(euclidean_dist_matrix, sigma=sigma)
+    graficar_matriz_similitud(similarity_matrix, d)
 
 
 
+    '''
     # Inicializar la matriz de similitud
     n = X_pca_d.shape[0]
     print("n es: ", n)
@@ -107,6 +176,7 @@ for d in (2,6,10, data_matrix_X.shape[0]//2, data_matrix_X.shape[0]):
     aprox_vect = LinearRegression().fit(X_pca_d, y)
 
     graficar_matriz_similitud(similarity_matrix, d)
+    '''
     
 
 
