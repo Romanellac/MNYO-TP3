@@ -1,20 +1,12 @@
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn import preprocessing
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics.pairwise import euclidean_distances
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-
-# To-do:
-# - cuadrados mínimos.
-# - Gráfico sobre como se distribuyen las muestras? Estan en nxp dimensiones, cómo hago si lo máximo 
-#   que podemos ver y graficar como humanos es nx3 ***
-# - PCA:  la matriz de similaridad con diferentes d no muestra diferencia, no se ve claro porque son 
-#   muchas muestras ***
-# - Qué metodo utilizar para determinar qué dimensiones de las p son las más importantes***
-
+from scipy.stats import spearmanr
+from sklearn.decomposition import TruncatedSVD
 
 def distancia_euclidiana(xi, xj, sigma):
     
@@ -32,52 +24,125 @@ def graficar_matriz_similitud(similarity_matrix, d):
     plt.ylabel("Índice de Muestra")
     plt.show()
 
-# Convertir la matriz de distancia en matriz de similitud usando afinidad gaussiana
 def gaussian_similarity(dist_matrix, sigma=1.0):
+    # Convertir la matriz de distancia en matriz de similitud usando afinidad gaussiana
     return np.exp(-dist_matrix**2 / (2 * sigma**2))
 
-# Desempaquetado de los datos en el archivo csv, guardados en una matriz
-data_matrix_X = np.loadtxt('dataset03.csv', delimiter=",", skiprows=1, usecols=range(1, np.genfromtxt('dataset03.csv', delimiter=",", max_rows=1).size))
-cant_filas = data_matrix_X.shape[0]
-cant_variables = data_matrix_X.shape[1]
-y = np.loadtxt('y3.txt')
-print("cantidad de filas: ", cant_filas,". cantidad de columnas: ", cant_variables)
+def desempaquetado_datos():
+    # Desempaquetado de los datos en el archivo csv, guardados en una matriz
+    data_matrix_X = np.loadtxt('dataset03.csv', delimiter=",", skiprows=1, usecols=range(1, np.genfromtxt('dataset03.csv', delimiter=",", max_rows=1).size))
+    cant_filas = data_matrix_X.shape[0]
+    cant_variables = data_matrix_X.shape[1]
+    y = np.loadtxt('y3.txt')
+    print("cantidad de muestras: ", cant_filas,". cantidad de features: ", cant_variables)
+    
+    return data_matrix_X, y
 
-# Descomposición SVD:
-U, S, Vt = np.linalg.svd(data_matrix_X, full_matrices=False) 
-S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a matriz.
+def SVD(X):
+    # Descomposición SVD:
+    U, S, Vt = np.linalg.svd(X, full_matrices=False) 
+    S = np.diag(S) #svd me devuelve un vector de valores singulares, lo convierto a matriz.
+    
+    return U, S, Vt
 
-# Plot U, S, Vt
-fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+def coeficiente_spearman_calc(S, X, X_d):
+    
+    # COEFICIENTE SPEARMAN: Qué tan bien se preserva la información de la matriz original.
+    # Valores más bajos implica que las matrices se parecen menos, valores altos que se parecen más.
+    
+    energía_acumulada = np.cumsum(S**2) / np.sum(S**2)
+    umbral = 0.95  
+    # Para retener el 95% de la variabilidad (energia/info total contenida 
+    # en los datos originales al reducir la dimensionalidad con SVD).
+    
+    # Variabilidad de los datos: Captada por los valores singulares
+    k = np.where(energía_acumulada >= umbral)[0][0] + 1
+    correlaciones = [spearmanr(X[i], X_d[i]).correlation for i in range(X.shape[0])]
+    correlación_promedio = np.mean(correlaciones)
+    return correlación_promedio
+    
+def PCA_mine(X_d_scaled, d, cant_features):
+    
+    # Modelo de PCA a utilizar:
+    if (d > cant_features):
+        pca = PCA(n_components= cant_features) # Atajo el caso borde
+    else:
+        pca = PCA(n_components= d)
+        
+    X_d_pca = pca.fit_transform(X_d_scaled)
+    
+    per_var = np.round(pca.explained_variance_ratio_* 100, decimals=1)
+    labels = ['PC' + str(x) for x in range(1, len(per_var)+1)]
+    
+    # SCREE PLOT: Muestra la importancia de cada componente que estamos tomando en cuenta (primeros d) 
+    # en la modificación que hace A (tipo lo que veíamos que los componentes modificaban geométricamente).
+    # Representa los valores de la varianza explicada por cada componente principal o factor
+    
+    plt.bar(x=range(1,len(per_var)+1), height=per_var, tick_label=labels)
+    plt.ylabel('Percentage of Explained Variance')
+    plt.xlabel('Principal Component')
+    plt.title('Scree Plot')
+    plt.show()
+    
+    
+    # PLOT PCA, PRIMEROS DOS COMPONENTES: Estructura del de datos multidimensionales (cada punto es una muestra).
+    pca_df = pd.DataFrame(X_d_pca, columns=labels)
+    
+    # En este caso tomamos en cuenta solo los dos primeros componentes.
+    # El porcentaje dice cuánta varianza de los datos originales es captada por cada componente principal.
+    # Uno con porcentaje más alto de varianza es más importante para entender la estructura de datos.
+    plt.scatter(pca_df.PC1, pca_df.PC2)
+    plt.title('PCA Graph')
+    plt.xlabel('PC1 - {0}%'.format(per_var[0]))
+    plt.ylabel('PC2 - {0}%'.format(per_var[1]))
+    # Los porcentajes representan la proporción de la varianza total que es explicada por cada componente principal
+    # Los clusters (agrupamientos) hablan de similitudes entre ese grupo de muestras.
+    # Si los puntos están re dispersos significa que hay mucha variabilidad entre las muestras.
+    
+    plt.show()
+    
+    return X_d_pca
 
-# Plot U
-axes[0].imshow(U, aspect='auto', cmap='viridis')
-axes[0].set_title('Matrix U')
-axes[0].set_xlabel('Components')
-axes[0].set_ylabel('Samples')
+def matriz_carga(d, X, cant_features):
+    # Matriz de carga: indica cuánto contribuye cada variable original a cada uno de los componentes principales. Es una forma de entender cómo se relacionan las dimensiones originales del dataset con las nuevas dimensiones obtenidas (componentes principales).
+    svd = TruncatedSVD(n_components=d)
+    X_svd = svd.fit_transform(X)
+    V = svd.components_  # Componentes principales
+    Sigma = svd.singular_values_  # Valores singulares
 
-# Plot S
-axes[1].imshow(S, aspect='auto', cmap='viridis')
-axes[1].set_title('Matrix S (Diagonal)')
-axes[1].set_xlabel('Components')
-axes[1].set_ylabel('Components')
+    Lambda = np.dot(V.T, np.diag(Sigma))
+    # Cada fila corresponde a una variable original y cada columna a un componente principal. Los valores absolutos en esta matriz indican la importancia de cada variable original para cada componente principal.
 
-# Plot Vt
-axes[2].imshow(Vt, aspect='auto', cmap='viridis')
-axes[2].set_title('Matrix V^T')
-axes[2].set_xlabel('Features')
-axes[2].set_ylabel('Components')
+    # Identificar las dimensiones originales más importantes: Sumo las cargas absolutas para 
+    # cada variable original a través de todos los componentes principales seleccionados y ordeno 
+    # estos valores de mayor a menor.
 
-plt.tight_layout()
-plt.show()
+    # Sumar las cargas absolutas para cada variable original
+    most_important_features = np.sum(np.abs(Lambda), axis=1)
 
-# Reducir la dimensionalidad: Matrices de rango d más cercanas a X.
-# Va cambiando las cantidades de variables medidas que va tomando en cuenta.
-for d in (2,6,10, data_matrix_X.shape[1]):
-    print("Matriz reducida. d = ", d, ".")
-    U_d = U[:,:d]
-    S_d = S[:d,:d]
-    Vt_d = Vt[:d,:]
+    features = np.array([f'Dimension {i+1}' for i in range(cant_features)])
+
+    # Ordenar las características por importancia
+    sorted_indices = np.argsort(most_important_features)[::-1]
+    sorted_features = features[sorted_indices]
+    sorted_importance = most_important_features[sorted_indices]
+
+    # Crear el gráfico de barras
+    plt.figure(figsize=(10, 6))
+    plt.bar(sorted_features, sorted_importance)
+    plt.title('Importancia de cada dimensión original respecto a las componentes principales')
+    plt.xlabel('Dimensiones originales')
+    plt.ylabel('Suma de las cargas absolutas')
+    plt.xticks(rotation=45, ha='right')
+    plt.show()
+
+    # Las dimensiones originales con los mayores valores absolutos en la matriz de cargas son las 
+    # más importantes porque tienen la mayor contribución a la variabilidad capturada por los 
+    # componentes principales seleccionados. Estas dimensiones son las que más influyen en la 
+    # estructura subyacente del conjunto de datos tal como está representado por los componentes 
+    # principales.
+    
+def Graf_U_S_Vt(U_d, S_d, Vt_d):
     
     # Plot U, S, Vt
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
@@ -102,84 +167,135 @@ for d in (2,6,10, data_matrix_X.shape[1]):
 
     plt.tight_layout()
     plt.show()
+        
+def cuadrados_minimos(U, S, Vt, y):
     
-    X_aprox_d= U_d@S_d@Vt_d
-    print("el shape de X_aprox_d es: ", X_aprox_d.shape)
+    matrix = U@S@Vt
+    pseudoinv = np.linalg.pinv(matrix)
+    x = np.dot(pseudoinv, y)
     
-    # Crear la mariz del nuevo espacio reducido z:
-    A_z = Vt_d.T@Vt_d # . x
+    y_aprox = np.dot(matrix, x)
     
-    # Centrar la data (le resto la media a cada columna):
-    X_aprox_d = preprocessing.scale(X_aprox_d)
+    error = np.linalg.norm(y_aprox - y)
+    print("error: ", error)
+    
+    indices_y = np.arange(len(y))
+    plt.scatter(indices_y, y, color='b', label='y real')
+    plt.scatter(indices_y, y_aprox, color='red', label='y aprox')
+    plt.title("y (aproximación) vs y")
+    plt.xlabel("Índice")
+    plt.ylabel("Valor")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+        
+    return error
+           
+def plot_last_and_first_vs(U,S,Vt, num):
+    original_X = U@S@Vt
+    first_num_vs_X = U[:, :num]@S[:num, :num]@Vt[:num, :]
+    last_num_vs_X = U[:, -num:]@S[-num:, -num:]@Vt[-num:, :]
+    
+    # Plot original, first y last.
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-    # Modelo de PCA a utilizar:
-    if (d > cant_variables):
-        pca = PCA(n_components= cant_variables) #Te tira un error sino ***
-    else:
-        pca = PCA(n_components= d)
-    X_pca_d = pca.fit_transform(X_aprox_d)
-    print("el shape de X_pca_d es: ", X_pca_d.shape)
+    # Plot original
+    axes[0].imshow(original_X, aspect='auto', cmap='viridis')
+    axes[0].set_title('Matriz original')
+    axes[0].set_xlabel('Components')
+    axes[0].set_ylabel('Samples')
+
+    # Plot first
+    axes[1].imshow(first_num_vs_X, aspect='auto', cmap='viridis')
+    axes[1].set_title(f'Matriz: Primeros {num} valores singulares')
+    axes[1].set_xlabel('Components')
+    axes[1].set_ylabel('Samples')
     
-    # Scree plot: Muestra la importancia de cada componente que estamos tomando en cuenta (primeros d) 
-    # en la modificación que hace A (tipo lo que veíamos que los componentes modificaban geométricamente).
-    per_var = np.round(pca.explained_variance_ratio_* 100, decimals=1)
-    labels = ['PC' + str(x) for x in range(1, len(per_var)+1)]
-    
-    plt.bar(x=range(1,len(per_var)+1), height=per_var, tick_label=labels)
-    plt.ylabel('Percentage of Explained Variance')
-    plt.xlabel('Principal Component')
-    plt.title('Scree Plot')
+    # Plot last
+    axes[2].imshow(last_num_vs_X, aspect='auto', cmap='viridis')
+    axes[2].set_title(f'Matriz: Últimos {num} valores singulares')
+    axes[2].set_xlabel('Components')
+    axes[2].set_ylabel('Samples')
+
+    plt.tight_layout()
     plt.show()
     
-    # Plot de los puntos de PCA: Estructura del de datos multidimensionales (cada punto es una muestra).
-    pca_df = pd.DataFrame(X_pca_d, columns=labels)
     
-    plt.scatter(pca_df.PC1, pca_df.PC2) 
-    #En este caso tomamos en cuenta solo los dos primeros componentes.
-    #El porcentaje dice cuánta varianza de los datos originales es captada por cada componente principal.
-    #Uno con porcentake más alto de varianza es más importante para entender la estructura de datos.
-    # - Por eso cuando usamos los 2000, el PC1 y PC2 no tienen porcentajes tan altos, porque como hay 800 mil otros
-    #   componentes más, la influencia sobre esa forma baja no?
-    plt.title('PCA Graph')
-    plt.xlabel('PC1 - {0}%'.format(per_var[0]))
-    plt.ylabel('PC2 - {0}%'.format(per_var[1]))
-    #Los clusters (agrupamientos) hablan de similitudes entre ese grupo de muestras.
-    #Si los puntos están re dispersos significa que hay mucha variabilidad entre las muestras.
+def main():
     
-  
+    X, y = desempaquetado_datos()
+    cant_filas = X.shape[0]
+    cant_features = X.shape[1]
+    
+    # Centrado de datos:
+    y = y - np.mean(y)
+    col_mean = np.mean(X, axis = 0)
+    X = X - col_mean
+    
+    
+    # Creo estructuras para guardar datos para graficar mas adelante.
+    dimension_arr = []
+    correl_spearman_different_dimensions = []
+    err_aprox_y_arr = []
+    
+    
+    # SVD:
+    U, S, Vt = SVD(X)
+
+    # Recorte de dimensiones:
+    for d in (2,6,10, X.shape[1]):
+        
+        #plot_last_and_first_vs(U, S, Vt, d)
+        
+        print("Matriz reducida. d = ", d, ".")
+        U_d = U[:,:d]
+        S_d = S[:d,:d]
+        Vt_d = Vt[:d,:]
+        
+        # Reconstrucción de X con la versión reducida a d dimensiones:
+        X_d = U_d@S_d@Vt_d
+        
+        # SPEARMAN: 
+        correlación_promedio = coeficiente_spearman_calc(S, X, X_d)
+        dimension_arr.append(d)
+        correl_spearman_different_dimensions.append(correlación_promedio)
+
+        # PCA:
+        X_d_pca = PCA_mine(X_d, d, cant_features)
+        
+        # MATRIZ DE SIMILITUD:
+        euclidean_dist_matrix = euclidean_distances(X_d_pca)
+        similarity_matrix = gaussian_similarity(euclidean_dist_matrix, sigma= 1.0)
+        graficar_matriz_similitud(similarity_matrix, d)
+        
+        # MATRIZ DE CARGA:
+        #matriz_carga(d)
+        
+        # CUADRADOS MÍNIMOS, PROYECCIÓN:
+        error_curr_dim = cuadrados_minimos(U_d, S_d, Vt_d, y)
+        err_aprox_y_arr.append(error_curr_dim)
+        
+        
+    # Gráfico del coeficiente de correlación de spearman para diferentes d:
+    plt.plot(dimension_arr, correl_spearman_different_dimensions)
+    plt.scatter( dimension_arr, correl_spearman_different_dimensions)
+    plt.title("Coeficiente de correlación de spearman - Número de dimensiones")
+    plt.xlabel("Número de dimensiones")
+    plt.ylabel("Coeficiente de correlación de spearman")
+    plt.grid(True)
     plt.show()
     
-    euclidean_dist_matrix = euclidean_distances(X_pca_d)
-
-    # Aplicar la transformación de afinidad gaussiana
-    sigma = 1.0  # Parámetro de escala
-    similarity_matrix = gaussian_similarity(euclidean_dist_matrix, sigma=sigma)
-    graficar_matriz_similitud(similarity_matrix, d)
-
-
-
-    '''
-    # Inicializar la matriz de similitud
-    n = X_pca_d.shape[0]
-    print("n es: ", n)
-    similarity_matrix = np.zeros((n, n))
+    # Gráfico del coeficiente de correlación de spearman para diferentes d:
+    plt.plot(dimension_arr, err_aprox_y_arr)
+    plt.scatter( dimension_arr, err_aprox_y_arr)
+    plt.title(" Error de aproximación - Número de dimensiones")
+    plt.xlabel("Número de dimensiones")
+    plt.ylabel("|| Ax - y||2")
+    plt.grid(True)
+    plt.show()
     
-    # Calcular la similitud par a par
-    for i in range(n):
-        for j in range(n):
-            if i != j:
-                similarity_matrix[i, j] = distancia_euclidiana(X_pca_d[i], X_pca_d[j], 1.0) # sigma??? de momento le pongo = 1 ***
-            else:
-                similarity_matrix[i, j] = 1.0 
-    
-    # Cuadrados mínimos para este d:
-    aprox_vect = LinearRegression().fit(X_pca_d, y)
+if __name__ == "__main__":
+    main()
 
-    graficar_matriz_similitud(similarity_matrix, d)
-    '''
-    
-
-
-    
 
 
