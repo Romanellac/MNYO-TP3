@@ -45,6 +45,28 @@ def SVD(X):
     
     return U, S, Vt
 
+def spearman_2(data, d):
+    # Calcular las correlaciones de Spearman
+    correlations = np.zeros((data.shape[1], d))  # Matriz para almacenar las correlaciones
+
+    for i in range(d):  # Para cada componente principal
+        for j in range(data.shape[1]):  # Para cada dimensión original
+            correlations[j, i], _ = spearmanr(data[:, j], components[:, i])
+
+    # Mostrar las correlaciones
+    print("Correlaciones de Spearman entre las dimensiones originales y las componentes principales:")
+    print(correlations)
+
+    correlations_df = pd.DataFrame(correlations, columns=[f'PC{i+1}' for i in range(d)], index=[f'Feature_{i+1}' for i in range(data.shape[1])])
+
+    # Graficar las correlaciones usando un heatmap
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(correlations_df, annot=True, cmap='coolwarm', center=0)
+    plt.title('Correlaciones de Spearman entre las Dimensiones Originales y las Componentes Principales')
+    plt.xlabel('Componentes Principales')
+    plt.ylabel('Dimensiones Originales')
+    plt.show()
+
 def coeficiente_spearman_calc(S, X, X_d):
     
     # COEFICIENTE SPEARMAN: Qué tan bien se preserva la información de la matriz original.
@@ -60,7 +82,7 @@ def coeficiente_spearman_calc(S, X, X_d):
     correlaciones = [spearmanr(X[i], X_d[i]).correlation for i in range(X.shape[0])]
     correlación_promedio = np.mean(correlaciones)
     return correlación_promedio
-    
+
 def PCA_mine(X_d_scaled, d, cant_features):
     
     # Modelo de PCA a utilizar:
@@ -141,7 +163,7 @@ def matriz_carga(d, X, cant_features):
     # componentes principales seleccionados. Estas dimensiones son las que más influyen en la 
     # estructura subyacente del conjunto de datos tal como está representado por los componentes 
     # principales.
-    
+
 def Graf_U_S_Vt(U_d, S_d, Vt_d):
     
     # Plot U, S, Vt
@@ -167,7 +189,7 @@ def Graf_U_S_Vt(U_d, S_d, Vt_d):
 
     plt.tight_layout()
     plt.show()
-        
+       
 def cuadrados_minimos(U, S, Vt, y):
     
     matrix = U@S@Vt
@@ -190,7 +212,7 @@ def cuadrados_minimos(U, S, Vt, y):
     plt.show()
         
     return error
-           
+       
 def plot_last_and_first_vs(U,S,Vt, num):
     original_X = U@S@Vt
     first_num_vs_X = U[:, :num]@S[:num, :num]@Vt[:num, :]
@@ -219,7 +241,6 @@ def plot_last_and_first_vs(U,S,Vt, num):
 
     plt.tight_layout()
     plt.show()
-    
     
 def main():
     
@@ -293,7 +314,7 @@ def main():
     plt.ylabel("|| Ax - y||2")
     plt.grid(True)
     plt.show()
-    
+
 if __name__ == "__main__":
     main()
 
