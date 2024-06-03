@@ -47,22 +47,27 @@ def SVD(X):
 
 def spearman_2(data, d):
     # Calcular las correlaciones de Spearman
-    correlations = np.zeros((data.shape[1], d))  # Matriz para almacenar las correlaciones
+    correlations = np.zeros((data.shape[1], 5))  # Matriz para almacenar las correlaciones
 
-    for i in range(d):  # Para cada componente principal
+    for i in range(5):  # Para cada componente principal
         for j in range(data.shape[1]):  # Para cada dimensión original
             correlations[j, i], _ = spearmanr(data[:, j], components[:, i])
 
-    # Mostrar las correlaciones
-    print("Correlaciones de Spearman entre las dimensiones originales y las componentes principales:")
-    print(correlations)
+    # Crear un DataFrame para las correlaciones
+    correlations_df = pd.DataFrame(correlations, columns=[f'PC{i+1}' for i in range(5)], index=[f'Feature_{i+1}' for i in range(data.shape[1])])
 
-    correlations_df = pd.DataFrame(correlations, columns=[f'PC{i+1}' for i in range(d)], index=[f'Feature_{i+1}' for i in range(data.shape[1])])
+    # Identificar las 5 dimensiones con mayor correlación para cada componente principal
+    top_features = {}
+    for col in correlations_df.columns:
+        top_features[col] = correlations_df[col].abs().nlargest(5).index.tolist()
+
+    # Crear un DataFrame para las correlaciones de las top features
+    top_correlations = correlations_df.loc[np.unique(sum(top_features.values(), []))]
 
     # Graficar las correlaciones usando un heatmap
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(correlations_df, annot=True, cmap='coolwarm', center=0)
-    plt.title('Correlaciones de Spearman entre las Dimensiones Originales y las Componentes Principales')
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(top_correlations, annot=True, cmap='coolwarm', center=0)
+    plt.title('Top 5 Correlaciones de Spearman entre Dimensiones Originales y Componentes Principales')
     plt.xlabel('Componentes Principales')
     plt.ylabel('Dimensiones Originales')
     plt.show()
